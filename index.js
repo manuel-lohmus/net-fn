@@ -189,17 +189,24 @@ exports.createServer = createServer;
 
 function tryToRunServer(fns, port, hostname = "localhost") {
 
-    fns = to_fnsObj(fns);
+    if (typeof fns === "string") {
 
-    var code = '"use strict";var fns = {'
-        + Object.keys(fns)
-            .reduce(function (output, key) {
-                return output + key + ': ' + fns[key] + ',';
-            }, "")
-        + '};'
-        + (require.main.path.endsWith("net-fn") ? 'require("./index.min.js")' : 'require("net-fn")')
-        + '.createServer(fns, ' + port + ', "' + hostname + '");';
-    //console.log(code);
-    return require("try-to-run").try_to_run(code);
+        return require("try-to-run").try_to_run(fns);
+    }
+    else {
+
+        fns = to_fnsObj(fns);
+        var code = '"use strict";var fns = {'
+            + Object.keys(fns)
+                .reduce(function (output, key) {
+                    return output + key + ': ' + fns[key] + ',';
+                }, "")
+            + '};'
+            + (require.main.path.endsWith("net-fn") ? 'require("./index.min.js")' : 'require("net-fn")')
+            + '.createServer(fns, ' + port + ', "' + hostname + '");';
+        //console.log(code);
+
+        return require("try-to-run").try_to_run(code);
+    }
 }
 exports.tryToRunServer = tryToRunServer;
