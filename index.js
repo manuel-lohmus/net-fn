@@ -196,7 +196,9 @@ function tryToRunServer(fns, port, hostname = "localhost") {
             .reduce(function (output, key) {
                 return output + key + ': ' + fns[key] + ',';
             }, "")
-        + '};require("./index.min.js").createServer(fns, ' + port + ', "' + hostname + '");';
+        + '};'
+        + (require.main.path.endsWith("net-fn") ? 'require("./index.min.js")' : 'require("net-fn")')
+        + '.createServer(fns, ' + port + ', "' + hostname + '");';
     //console.log(code);
     return require("try-to-run").try_to_run(code);
 }
