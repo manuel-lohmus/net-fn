@@ -1,0 +1,35 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>net-fn:  a Node.js Inter Process Communication library</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./md-styles.css">
+</head>
+<body class="markdown-body">
+    <h1 id="net-fn-a-node.js-inter-process-communication-library">net-fn:  a Node.js Inter Process Communication library</h1>
+<p><a href="https://www.npmjs.com/package/net-fn"><img src="https://badgen.net/npm/v/net-fn" alt="npm-version" /></a>
+<a href="https://www.npmjs.com/package/net-fn"><img src="https://badgen.net/npm/dw/net-fn" alt="npm-week-downloads" /></a></p>
+<p>'Inter-process communication' Allows you to communicate with background processes over the 'net' module.
+The callback APIs perform all operations asynchronously, without blocking the event loop, then invoke a callback function upon completion or error.</p>
+<h2 id="installing">Installing</h2>
+<p><code>npm install net-fn</code></p>
+<h2 id="usage-example">Usage example</h2>
+<pre><code class="language-js">var net_fn = require(&quot;net-fn&quot;);
+var bg_module = require(&quot;your-background-module&quot;);
+var port = 8021;
+
+var worker = net_fn.tryToRunServer(bg_module, port, &quot;localhost&quot;);
+var bgModule = net_fn.connect(bg_module, port, &quot;localhost&quot;);
+
+// the background module is ready for use
+bgModule.fn(arg, function callback(err, result){
+    ...
+});
+
+</code></pre>
+<h2 id="license">License</h2>
+<p><a href="LICENSE">MIT</a></p>
+<p>Copyright (c) 2021 Manuel Lõhmus <a href="mailto:manuel@hauss.ee">manuel@hauss.ee</a></p>
+
+</body>
+</html>
