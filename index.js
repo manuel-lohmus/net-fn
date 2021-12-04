@@ -88,7 +88,7 @@ function connect(fns, port, hostname = "localhost") {
                                             if (typeof a === "string" && a.startsWith("fn")) {
 
                                                 return function () {
-                                                    
+
                                                     var args = argArrMap(Array.from(arguments));
                                                     client.write(JSON.stringify({ key: a, argArr: args }));
                                                 };
@@ -111,6 +111,7 @@ function connect(fns, port, hostname = "localhost") {
                         if (!Object.keys(callbacks).length) { client.end(); }
                     }
                 );
+                client.on("error", function (err) { console.error("fn_connect:", err); });
             };
         }
     });
@@ -123,90 +124,126 @@ function connect(fns, port, hostname = "localhost") {
 }
 exports.connect = connect;
 
+function isPortFree(port, callback, hostname = "localhost") {
+
+    var client = net.connect({ port: port, host: hostname });
+    client.on("error", function () { client.end(); if (typeof callback === "function") { callback(true); } });
+    client.on("ready", function () { client.end(); if (typeof callback === "function") { callback(false); } });
+    client.on("timeout", function () { client.end(); if (typeof callback === "function") { callback(false); } });
+}
+exports.isPortFree = isPortFree;
+
 /**
  * @param {any} fns  function or [ fn0, nf1, nf2, ... ] or { fnName: nf, ... }
  * @param {number} port
  * @param {number} hostname Default: "localhost".
  * @returns {net.Server}
  */
-function createServer(fns, port, hostname = "localhost") {
+function createServer(fns, port, callback, hostname = "localhost") {
 
     fns = to_fnsObj(fns);
 
-    return net
-        .createServer(function (client) {
-            client.on("data", function (msg) {
+    isPortFree(port, function (isPortFree) {
 
-                var isCallback = false;
-                var msgObj = JSON.parse(msg);
-                var fn = fns[msgObj.key];
+        //console.log("isPortFree: ", isPortFree);
 
-                if (!fn) {
+        if (isPortFree) {
 
-                    fn = callbacks[msgObj.key];
-                    if (fn) { delete callbacks[msgObj.key]; }
-                }
+            var server = net.createServer(function (client) {
+                client.on("data", function (msg) {
 
-                if (typeof fn === "function") {
+                    var isCallback = false;
+                    var msgObj = JSON.parse(msg);
+                    var fn = fns[msgObj.key];
 
-                    msgObj.argArr = msgObj.argArr.map(function (arg) {
+                    if (!fn) {
 
-                        if (typeof arg === "string" && arg.startsWith("fn")) {
+                        fn = callbacks[msgObj.key];
+                        if (fn) { delete callbacks[msgObj.key]; }
+                    }
 
-                            isCallback = true;
+                    if (typeof fn === "function") {
 
-                            return function () {
+                        msgObj.argArr = msgObj.argArr.map(function (arg) {
 
-                                var argArr = Array.from(arguments);
-                                argArr = argArrMap(argArr, callbacks);
-                                client.write(JSON.stringify({ argArr: [[arg, argArr]] }));
-                            };
-                        }
+                            if (typeof arg === "string" && arg.startsWith("fn")) {
 
-                        else { return arg; }
+                                isCallback = true;
+
+                                return function () {
+
+                                    var argArr = Array.from(arguments);
+                                    argArr = argArrMap(argArr, callbacks);
+                                    client.write(JSON.stringify({ argArr: [[arg, argArr]] }));
+                                };
+                            }
+
+                            else { return arg; }
+                        });
+
+                        var result = fn.apply(null, msgObj.argArr);
+                        if (result) { client.write(JSON.stringify({ result: result })); }
+                        else if (!isCallback) { client.end(); }
+                    }
+
+                    else { throw new Error("The '" + msgObj.key + "' is undefined."); }
+                });
+                //client.on("close", function (isErr) {
+                //    console.log(isErr ? "Connection closed with error." : "Connection closed");
+                //});
+            })
+                .listen(port, hostname, function () {
+                    console.log("'net-fn' service:", {
+                        hostname: hostname,
+                        port: port,
+                        file: process.argv[1],
+                        pid: process.pid
                     });
+                })
+            server.on("error", function (err) { console.error("fn_server", err); });
 
-                    var result = fn.apply(null, msgObj.argArr);
-                    if (result) { client.write(JSON.stringify({ result: result })); }
-                    else if (!isCallback) { client.end(); }
-                }
+            if (typeof callback === "function") { callback(server); }
 
-                else { throw new Error("The '" + msgObj.key + "' is undefined."); }
-            });
-            client.on("close", function (isErr) {
-                console.log(isErr ? "Connection closed with error." : "Connection closed");
-            });
-        })
-        .listen(port, hostname, function () {
-            console.log("'net-fn' service", {
-                hostname: hostname,
-                port: port,
-                pid: process.pid
-            });
-        });
+        }
+    }, hostname);
 }
 exports.createServer = createServer;
 
-function tryToRunServer(fns, port, hostname = "localhost") {
+var try_to_run = require("try-to-run");
 
-    if (typeof fns === "string") {
+function tryToRunServer(fns, port, callback, hostname = "localhost") {
 
-        return require("try-to-run").try_to_run(fns);
-    }
-    else {
+    isPortFree(port, function (isPortFree) {
 
-        fns = to_fnsObj(fns);
-        var code = '"use strict";var fns = {'
-            + Object.keys(fns)
-                .reduce(function (output, key) {
-                    return output + key + ': ' + fns[key] + ',';
-                }, "")
-            + '};'
-            + (require.main.path.endsWith("net-fn") ? 'require("./index.min.js")' : 'require("net-fn")')
-            + '.createServer(fns, ' + port + ', "' + hostname + '");';
-        //console.log(code);
+        //console.log("isPortFree: ", isPortFree);
 
-        return require("try-to-run").try_to_run(code);
-    }
+        if (isPortFree) {
+
+            if (typeof fns === "string") {
+
+                if (typeof callback === "function") { callback(try_to_run(fns)); }
+            }
+            else {
+
+                fns = to_fnsObj(fns);
+                var code = '"use strict";var fns = {'
+                    + Object.keys(fns)
+                        .reduce(function (output, key) {
+                            return output + key + ': ' + fns[key] + ',';
+                        }, "")
+                    + '};'
+                    + (require.main.path.endsWith("net-fn") ? 'require("./index.js")' : 'require("net-fn")')
+                    + '.createServer(fns, ' + port + ', "' + hostname + '");';
+                //console.log(code);
+
+                if (typeof callback === "function") { callback(try_to_run(code)); }
+            }
+        }
+        else {
+
+            //console.log("kill!");
+            require("worker_threads").parentPort.postMessage("kill");
+        }
+    }, hostname);
 }
 exports.tryToRunServer = tryToRunServer;

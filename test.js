@@ -1,11 +1,12 @@
 'use strict';
-var net_fn = require('./index');
+
+var net_fn = require('./index.min.js');
 
 function fnTest(number, callback) {
     callback(number * 2);
 }
 
-var worker = net_fn.tryToRunServer(fnTest, 8021);
+var worker = net_fn.createServer(fnTest, 8021);
 var fn = net_fn.connect(fnTest, 8021);
 setTimeout(function () {
     fn(10, function (result) {
